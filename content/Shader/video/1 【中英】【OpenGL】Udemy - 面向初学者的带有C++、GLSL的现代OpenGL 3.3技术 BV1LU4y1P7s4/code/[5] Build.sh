@@ -1,0 +1,18 @@
+sudo apt-get -y update;
+sudo apt install -y gcc;
+sudo apt install -y cmake;
+sudo apt-get install -y libx11-dev;
+sudo apt-get install -y libxrandr-dev;
+sudo apt-get install -y libxinerama-dev;
+sudo apt-get install -y libxcursor-dev;
+sudo apt-get install -y libxi-dev;
+sudo apt-get -y update;
+sudo apt-get install -y libglfw3 libglfw3-dev;
+sudo apt-get install -y git;
+sudo apt-get install -y build-essential;
+git clone https://github.com/glULTRA/OpenGL-Cross-Platform.git;
+cd OpenGL-Cross-Platform/;
+cmake -S . -B ./build/ -G "Unix Makefiles" -D GLFW_BUILD_DOCS=OFF -D BUILD_ASSIMP=ON;
+cd ./build/;
+cmake --build .;
+./OpenGL;

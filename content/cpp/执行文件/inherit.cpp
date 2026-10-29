@@ -1,4 +1,4 @@
-//继承
+//用于测试继承用法
 #include <iostream>
 using namespace std;
 class AClass

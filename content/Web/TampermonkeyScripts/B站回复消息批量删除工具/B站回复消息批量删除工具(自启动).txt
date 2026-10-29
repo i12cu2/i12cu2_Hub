@@ -1,0 +1,300 @@
+// ==UserScript==
+// @name         B站回复消息批量删除工具
+// @namespace    http://tampermonkey.net/
+// @version      1.0
+// @description  批量删除B站"回复我的"消息
+// @author       You
+// @match        https://www.bilibili.com/*
+// @match        https://message.bilibili.com/*
+// @grant        GM_notification
+// ==/UserScript==
+
+(function() {
+    'use strict';
+
+    // 创建控制面板
+    function createControlPanel() {
+        // 检查是否已存在控制面板，避免重复创建
+        if (document.getElementById('biliDeletePanel')) {
+            return document.getElementById('biliDeletePanel');
+        }
+
+        const panel = document.createElement('div');
+        panel.id = 'biliDeletePanel';
+        panel.style.cssText = `
+            position: fixed;
+            top: 100px;
+            right: 20px;
+            background: #fff;
+            border: 2px solid #00a1d6;
+            border-radius: 10px;
+            padding: 15px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 10000;
+            font-family: 'Microsoft YaHei', sans-serif;
+            min-width: 200px;
+        `;
+
+        panel.innerHTML = `
+            <div style="margin-bottom: 10px; font-weight: bold; color: #00a1d6;">B站消息清理工具</div>
+            <button id="stopDelete" style="background: #ff4d4f; color: white; border: none; padding: 8px 12px; border-radius: 5px; cursor: pointer; margin: 5px; width: 100%;">停止删除</button>
+            <div style="margin-top: 10px; font-size: 12px; color: #666;">
+                <div>状态: <span id="status">初始化中...</span></div>
+                <div>已删除: <span id="deletedCount">0</span> 条</div>
+                <div>刷新次数: <span id="refreshCount">0</span> 次</div>
+            </div>
+        `;
+
+        document.body.appendChild(panel);
+
+        // 添加事件监听
+        document.getElementById('stopDelete').addEventListener('click', stopDeletion);
+
+        return panel;
+    }
+
+    let isDeleting = false;
+    let deletedCount = 0;
+    let deletionInterval;
+    let refreshCount = 0;
+    let noDeleteButtonCount = 0; // 连续未找到删除按钮的次数
+
+    // 更新状态显示
+    function updateStatus(message) {
+        const statusElement = document.getElementById('status');
+        const countElement = document.getElementById('deletedCount');
+        const refreshElement = document.getElementById('refreshCount');
+        if (statusElement) statusElement.textContent = message;
+        if (countElement) countElement.textContent = deletedCount;
+        if (refreshElement) refreshElement.textContent = refreshCount;
+    }
+
+    // 刷新页面并继续删除
+    function refreshAndContinue() {
+        if (!isDeleting) return;
+
+        refreshCount++;
+        updateStatus(`刷新页面 (${refreshCount})...`);
+        console.log(`刷新页面，第 ${refreshCount} 次`);
+
+        // 保存当前状态
+        const savedCount = deletedCount;
+        const savedIsDeleting = isDeleting;
+
+        // 刷新页面
+        location.reload();
+
+        // 页面刷新后，脚本会重新执行，我们需要在页面加载完成后恢复删除状态
+        window.addEventListener('load', function() {
+            // 等待一小段时间让页面完全加载
+            setTimeout(() => {
+                if (savedIsDeleting) {
+                    // 重新创建控制面板并恢复状态
+                    createControlPanel();
+                    deletedCount = savedCount;
+                    isDeleting = true;
+                    updateStatus('页面刷新后继续删除...');
+
+                    // 重新开始删除循环
+                    deletionInterval = setInterval(deleteMessages, 1500);
+                }
+            }, 2000);
+        });
+    }
+
+    // 开始删除
+    function startDeletion() {
+        if (isDeleting) return;
+
+        isDeleting = true;
+        deletedCount = 0;
+        refreshCount = 0;
+        noDeleteButtonCount = 0;
+        updateStatus('正在删除中...');
+
+        // 检查是否在消息页面
+        if (!window.location.href.includes('message.bilibili.com')) {
+            // 跳转到回复消息页面
+            window.open('https://message.bilibili.com/#/reply', '_blank');
+            GM_notification({
+                text: '请在新打开的页面中使用删除功能',
+                title: 'B站消息清理',
+                timeout: 3000
+            });
+            isDeleting = false;
+            updateStatus('请在新页面操作');
+            return;
+        }
+
+        // 开始删除循环
+        deletionInterval = setInterval(deleteMessages, 1500);
+    }
+
+    // 停止删除
+    function stopDeletion() {
+        isDeleting = false;
+        noDeleteButtonCount = 0;
+        if (deletionInterval) {
+            clearInterval(deletionInterval);
+        }
+        updateStatus('已停止');
+        GM_notification({
+            text: `删除操作已停止，共删除 ${deletedCount} 条消息`,
+            title: 'B站消息清理',
+            timeout: 3000
+        });
+    }
+
+    // 检查是否显示"然而并没有数据"
+    function hasNoDataMessage() {
+        const noDataSelectors = [
+            '.no-data',
+            '.empty',
+            '.no-result',
+            '.no-content',
+            '[class*="no"]',
+            '[class*="empty"]'
+        ];
+
+        for (const selector of noDataSelectors) {
+            const elements = document.querySelectorAll(selector);
+            for (let el of elements) {
+                if (el.textContent && (
+                    el.textContent.includes('然而并没有数据') ||
+                    el.textContent.includes('暂无数据') ||
+                    el.textContent.includes('没有数据')
+                )) {
+                    return true;
+                }
+            }
+        }
+
+        // 检查页面是否有明显的无数据提示
+        const bodyText = document.body.textContent;
+        if (bodyText.includes('然而并没有数据') || bodyText.includes('暂无数据')) {
+            return true;
+        }
+
+        return false;
+    }
+
+    // 点击确认按钮
+    function clickConfirmButton() {
+        // 根据您提供的DOM结构
+        const confirmBtn = document.querySelector('.b-modal-root .b-modal .b-modal-footer .b-modal-button.b-modal-confirm');
+        if (confirmBtn) {
+            console.log('找到确认按钮，点击确认');
+            confirmBtn.click();
+            return true;
+        }
+        console.log('未找到确认按钮');
+        return false;
+    }
+
+    // 查找并点击删除按钮
+    function findAndClickDeleteButton() {
+        // 首先尝试通过文本内容查找
+        const allElements = document.querySelectorAll('a, button, span, div');
+        for (let el of allElements) {
+            if (el.textContent && el.textContent.trim() === '删除该通知') {
+                console.log('通过文本找到删除按钮:', el);
+                el.click();
+                return true;
+            }
+        }
+
+        // 如果文本查找失败，尝试通过类名查找
+        const deleteSelectors = [
+            '.delete',
+            '.del',
+            '.btn-delete',
+            '[class*="delete"]',
+            '.item .delete',
+            '.message-item .delete',
+            '.list-item .delete'
+        ];
+
+        for (const selector of deleteSelectors) {
+            const buttons = document.querySelectorAll(selector);
+            for (let btn of buttons) {
+                if (btn.offsetParent !== null) { // 检查元素是否可见
+                    console.log('通过选择器找到删除按钮:', btn);
+                    btn.click();
+                    return true;
+                }
+            }
+        }
+
+        console.log('未找到任何删除按钮');
+        return false;
+    }
+
+    // 删除消息的主要逻辑
+    function deleteMessages() {
+        if (!isDeleting) return;
+
+        try {
+            console.log('开始尝试删除消息...');
+
+            // 查找并点击删除按钮
+            const foundDelete = findAndClickDeleteButton();
+
+            if (foundDelete) {
+                noDeleteButtonCount = 0; // 重置计数器
+                console.log('已点击删除按钮，等待确认对话框...');
+
+                // 等待对话框出现，然后点击确认
+                setTimeout(() => {
+                    if (clickConfirmButton()) {
+                        deletedCount++;
+                        updateStatus(`已删除 ${deletedCount} 条消息`);
+                        console.log(`成功删除第 ${deletedCount} 条消息`);
+                    }
+                }, 800);
+            } else {
+                noDeleteButtonCount++;
+                console.log(`未找到删除按钮 (${noDeleteButtonCount}/3)`);
+
+                // 检查是否显示"然而并没有数据"
+                if (hasNoDataMessage()) {
+                    console.log('检测到"然而并没有数据"提示，准备刷新页面');
+                    refreshAndContinue();
+                    return;
+                }
+
+                // 如果连续3次未找到删除按钮，尝试滚动页面
+                if (noDeleteButtonCount <= 3) {
+                    console.log('尝试滚动页面以加载更多内容');
+                    window.scrollTo(0, document.body.scrollHeight);
+                } else {
+                    // 如果连续多次未找到删除按钮，刷新页面
+                    console.log('连续多次未找到删除按钮，刷新页面');
+                    refreshAndContinue();
+                }
+            }
+
+        } catch (error) {
+            console.error('删除过程中出错:', error);
+            updateStatus('出错: ' + error.message);
+        }
+    }
+
+    // 初始化
+    function init() {
+        // 等待页面加载完成
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', function() {
+                createControlPanel();
+                // 页面加载完成后自动开始删除
+                setTimeout(startDeletion, 2000);
+            });
+        } else {
+            createControlPanel();
+            // 页面已经加载完成，自动开始删除
+            setTimeout(startDeletion, 2000);
+        }
+    }
+
+    // 启动脚本
+    init();
+})();

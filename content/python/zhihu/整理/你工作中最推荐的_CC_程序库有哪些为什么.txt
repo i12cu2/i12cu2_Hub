@@ -1,0 +1,73 @@
+来几个不常见但是很变态的库吧:
+bundle: 把几乎所有常见的压缩库封装成了一个库, 接口完全统一, 想用哪个用哪个.
+就一个h和一个巨TM大的cpp文件,巨好使巨方便.
+r-lyeh-archived/bundle
+https://link.zhihu.com/?target=https%3A//github.com/r-lyeh-archived/bundle
+Celero: 简单清晰的benchmark库, 特点就是简单易用没有废话.
+DigitalInBlue/Celero
+https://link.zhihu.com/?target=https%3A//github.com/DigitalInBlue/Celero
+getopt: 解析命令行输入参数的库, 好使! 没废话! 就俩文件.
+r-lyeh-archived/getopt
+https://link.zhihu.com/?target=https%3A//github.com/r-lyeh-archived/getopt
+stb_image: 常见图片格式加载库, 就一个巨大无比的头文件
+stb_truetype: 常见字体加载库, 就一个巨大无比的头文件, 觉得freetype大的可以用它.
+都在这: nothings/stb
+https://link.zhihu.com/?target=https%3A//github.com/nothings/stb
+better-enums: 编译期实现的enum扩展功能,包括enum和字符串互转等等. 感觉比较重量级, 我一般是不用的, 但有时候没它还真是别扭, 尤其是需要把一个enum序列化的时候.
+aantron/better-enums
+https://link.zhihu.com/?target=https%3A//github.com/aantron/better-enums
+Catch2: 著名的单元测试框架, 那么它和boost或者google的单元测试框架有什么不同呢?
+就在于它首先是header only的, 其次是没有废话,直击要害! 你要测试对吧? 给你!
+catchorg/Catch2
+https://link.zhihu.com/?target=https%3A//github.com/catchorg/Catch2
+uchardet: 实现猜字符串编码的功能, 例如输入一个不知道编码的文本文件, 它可以帮你"猜" 这个文件的编码是什么. 和python里的uchardet功能基本一样.
+BYVoid/uchardet
+https://link.zhihu.com/?target=https%3A//github.com/BYVoid/uchardet
+win-iconv: iconv库是一个字符集编码转换的库, 在linux和mac下均是原生字符转换库. 但windows上并不是自带的. 那么就会导致在windows上编译iconv有点浪费. 因为windows显然已经自带字符集转换的功能了. 那么这个库的作用就是用windows api来实现和iconv库一模一样的接口. 这样编译出来比较小. 从此字符转换不是梦.
+win-iconv/win-iconv
+https://link.zhihu.com/?target=https%3A//github.com/win-iconv/win-iconv
+freetype-gl: open gl 上实现的freetype. 不过我个人没用过... 不知道好不好用. 但当你需要在opengl上下文中渲染字体的时候, 你可能用得着它.
+rougier/freetype-gl
+https://link.zhihu.com/?target=https%3A//github.com/rougier/freetype-gl
+nanovg: 基于openGL/DX/metal的2d绘图库. 绘图效率高, 接口清晰. 主版本是基于openGL的, 但有DX,metal等分支. 前端接口还有python和lua的. 个人感觉不错.
+memononen/nanovg
+https://link.zhihu.com/?target=https%3A//github.com/memononen/nanovg
+imgui: 大名鼎鼎的imgui, 你可能会问在有一堆GUI框架的情况下为什么我们需要imgui? 因为它是immediate mode的. 个人认为是几个immediate mode的GUI框架里最好的. 详细见它的页面介绍.
+r-lyeh-archived/imgui
+spdlog: logger库, 重点推荐! 为什么呢? 因为好使! 没有废话. 而且是header only的.
+gabime/spdlog
+https://link.zhihu.com/?target=https%3A//github.com/gabime/spdlog
+ffts: 很好使的FFT库, 和fftw的不同在于用着是真方便! 而且难能可贵在于速度居然真不比fftw慢.
+linkotec/ffts
+https://link.zhihu.com/?target=https%3A//github.com/linkotec/ffts
+fmt: formatting库, 又小又好使! 太好使了!
+fmtlib/fmt
+https://link.zhihu.com/?target=https%3A//github.com/fmtlib/fmt
+最后是恐怖的Amalgamate.
+vinniefalco/Amalgamate
+https://link.zhihu.com/?target=https%3A//github.com/vinniefalco/Amalgamate
+它是干嘛的呢? 它是专门用来把其他库"封装成"一个cpp和一个h文件的工具. 比如说freetype里有几十个h几十个cpp, 用起来觉得麻烦的话, 就写个配置文件然后用它跑一下, 立即就可以把freetype的这些cpp和h文件变成仅仅两个巨大无比的cpp和h文件. 再重复一遍, 巨大无比!! 这便是传说中的unity build.... 目前github上已经有很多的人开始用它来封装一些常见的库了.
+这样做有什么好处呢? 比如说有个库,
+那么这么做好不好呢, 我也不知道. 前文中提到的bundle库就是用它把N多库合并到一个cpp里的.
+这个工具的作者vinniefalco还写了beast库, 目前已收录进了boost里.
+freetypeAmalgam: 利用上面的工具把整个freetype封装成了一个h和一个cpp, 想用freetype又懒得编译和配置的人就把这两个文件往项目里一拖, 就可以用freetype了.
+vinniefalco/FreeTypeAmalgam
+https://link.zhihu.com/?target=https%3A//github.com/vinniefalco/FreeTypeAmalgam
+//--------------------------------------------------
+再补充几个吧:
+上面说的iconv的win32实现复杂了一点, 这个更简单:
+https://github.com/win-iconv/win-iconv
+PFFFT: 又一个FFT库, 那么你也许会问它和FFTW相比如何呢? 它的好处就是真的很小! 两个文件往项目里一拖就行了:
+https://github.com/marton78/pffft
+bgfx: 超恐怖的跨平台图形渲染库, windows mac linux ios 安卓html...跨的平台基本全了, 它的后端就更可怕了, DX, opengl, metal... 连webgl都有. 我不怎么搞这方面, 也不知道好不好使, 我只是觉得很牛就放这里了:
+bkaradzic/bgfx
+https://link.zhihu.com/?target=https%3A//github.com/bkaradzic/bgfx
+scriptorium: 这个就不算是库了, 是几乎所有你听说过的没听说过的常见用于游戏脚本的语言的benchmark, 可以不去研究, 但不妨看看:
+r-lyeh-archived/scriptorium
+https://link.zhihu.com/?target=https%3A//github.com/r-lyeh-archived/scriptorium
+tinyexpr: 我特别喜欢的数学表达式解析和计算库, 真的好用而且小, 专门用来实现在程序运行时解析用户输入的数学表达式并做计算的库, 只有两个文件, 往项目里一拖就行了:
+codeplea/tinyexpr
+https://link.zhihu.com/?target=https%3A//github.com/codeplea/tinyexpr
+matplotcpp: 在C++中绑定python的matplot库.
+lava/matplotlib-cpp
+https://link.zhihu.com/?target=https%3A//github.com/lava/matplotlib-cpp

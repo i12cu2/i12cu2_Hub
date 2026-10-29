@@ -1,0 +1,1 @@
+cmd -> Services.msc -> Sysmain -> 停止+禁用

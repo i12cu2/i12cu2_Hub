@@ -1,0 +1,40 @@
+#include <iostream>/*
+"""*/
+using namespace std;//""""""
+/*"""
+class ostream:
+    def __lshift__(self,a):
+	print(a,end="")
+	return self
+cout=ostream()
+endl="\n"
+"""*/
+int main()
+{/*"""
+if True:#*/
+    cout << "Hello World!" << endl;
+#define a/*
+"""*/
+}//"""
+来,告诉我,这是什么语言？
+#include <iostream>/*
+"""*/
+using namespace std;//""""""
+/*"""
+class ostream:
+    def __lshift__(self,a):
+	print(a,end="")
+	return self
+cout=ostream()
+endl="\n"
+"""*/
+int main()
+{/*"""
+if True:#*/
+    cout << "Hello World!" << endl;
+#define a/*
+"""*/
+}//"""
+再告诉我一遍,这是什么语言？
+谁说只有C++可以用<<……
+你没见过不代表没有.

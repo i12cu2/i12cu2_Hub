@@ -1,0 +1,757 @@
+// ==UserScript==
+// @name         ZhihuBlocking
+// @namespace    http://tampermonkey.net/
+// @version      1.3
+// @description  知乎内容自定义屏蔽词过滤器
+// @author       github_i12cu84
+// @match        https://www.zhihu.com/
+// @grant        GM_setValue
+// @grant        GM_getValue
+// @grant        GM_registerMenuCommand
+// ==/UserScript==
+
+(function() {
+    'use strict';
+
+    // 从存储中获取屏蔽词，如果没有则使用默认列表
+    let blockKeywords = JSON.parse(GM_getValue('blockKeywords', '[]'));
+    if (!blockKeywords || blockKeywords.length === 0) {
+        blockKeywords = [
+
+  "原神",
+  "米池",
+  "米哈游",
+  "散兵",
+  "鸣潮",
+  "lpl",
+  "cv",
+  "infp",
+  "龟娘",
+  "卞相壹",
+  "战鹰",
+  "民警",
+  "虎扑",
+  "明末",
+  "虐猫",
+  "乙游",
+  "二游",
+  "恋与",
+  "丝之歌",
+  "合法",
+  "全红婵",
+  "纳塔",
+  "董宇辉",
+  "jk",
+  "灾难片",
+  "水军",
+  "男足",
+  "处女",
+  "BLG",
+  "G2",
+  "写真",
+  "T1",
+  "穿搭",
+  "变性",
+  "宗馥莉",
+  "杨振宁",
+  "米系",
+  "KOL",
+  "有钱",
+  "人民日报",
+  "赚",
+  "照片",
+  "身材",
+  "图片",
+  "微胖",
+  "极品",
+  "皮肤",
+  "三角洲",
+  "裸贷",
+  "郭德纲",
+  "雷军",
+  "整容",
+  "舞蹈生",
+  "抑郁",
+  "自杀",
+  "Faker",
+  "Knight",
+  "诗词",
+  "艾滋",
+  "瑞士轮",
+  "Crisp",
+  "高境一中",
+  "死亡",
+  "聊骚",
+  "明星",
+  "花臂",
+  "纹身",
+  "剩女",
+  "同性恋",
+  "古诗",
+  "股市",
+  "反华",
+  "黄色网站",
+  "三国杀",
+  "瑜伽裤",
+  "柬埔寨",
+  "诈骗",
+  "泰国",
+  "粉丝",
+  "小米",
+  "漂亮",
+  "女演员",
+  "未明子",
+  "文案",
+  "拉丁舞",
+  "性张力",
+  "鸿蒙",
+  "米乎",
+  "连裤袜",
+  "女拳",
+  "黑人",
+  "黄片",
+  "情色",
+  "色情",
+  "hpv",
+  "hiv",
+  "戒色",
+  "姜萍",
+  "Soul",
+  "黑丝",
+  "红米",
+  "TES",
+  "GEN",
+  "黄金",
+  "斗罗大陆",
+  "在家挣钱",
+  "金价",
+  "投资",
+  "理财",
+  "热裤",
+  "新兰",
+  "崩坏",
+  "星琼铁道",
+  "米家游戏",
+  "搞钱",
+  "姓",
+  "外貌",
+  "肉体"
+        ];
+        GM_setValue('blockKeywords', JSON.stringify(blockKeywords));
+    }
+
+    // 转换为小写的关键词数组，用于不区分大小写匹配
+    let blockKeywordsLower = blockKeywords.map(keyword => keyword.toLowerCase());
+
+    // 目标问题的父容器选择器 - 使用更精确的选择器
+    const QUESTION_CONTAINER_SELECTOR = '.TopstoryItem, .ContentItem, .QuestionItem';
+    // 标题元素选择器
+    const TITLE_SELECTOR = '.ContentItem-title a, .QuestionItem-title a, a[href*="/question/"]';
+
+    // 性能优化：缓存已处理的元素
+    const processedElements = new WeakSet();
+
+    // 改进的防抖函数
+    function debounce(func, wait, immediate) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                timeout = null;
+                if (!immediate) func(...args);
+            };
+            const callNow = immediate && !timeout;
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+            if (callNow) func(...args);
+        };
+    }
+
+    // 创建控制面板
+    function createControlPanel() {
+        const panel = document.createElement('div');
+        panel.id = 'happy-zhihu-panel';
+        panel.style.position = 'fixed';
+        panel.style.right = '20px';
+        panel.style.bottom = '20px';
+        panel.style.width = '300px';
+        panel.style.background = 'white';
+        panel.style.borderRadius = '8px';
+        panel.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+        panel.style.zIndex = '10000';
+        panel.style.fontFamily = 'system-ui, -apple-system, sans-serif';
+        panel.style.overflow = 'hidden';
+
+        // 标题栏
+        const header = document.createElement('div');
+        header.style.padding = '10px 15px';
+        header.style.background = '#0084ff';
+        header.style.color = 'white';
+        header.innerHTML = '<strong>屏蔽词管理</strong>';
+        panel.appendChild(header);
+
+        // 内容区域
+        const content = document.createElement('div');
+        content.style.padding = '15px';
+
+        // 添加关键词输入框
+        const inputContainer = document.createElement('div');
+        inputContainer.style.display = 'flex';
+        inputContainer.style.marginBottom = '10px';
+
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.id = 'happy-zhihu-keyword-input';
+        input.placeholder = '输入要屏蔽的关键词';
+        input.style.flexGrow = '1';
+        input.style.padding = '8px';
+        input.style.border = '1px solid #ddd';
+        input.style.borderRadius = '4px 0 0 4px';
+
+        const addButton = document.createElement('button');
+        addButton.textContent = '添加';
+        addButton.style.background = '#0084ff';
+        addButton.style.color = 'white';
+        addButton.style.border = 'none';
+        addButton.style.padding = '8px 12px';
+        addButton.style.borderRadius = '0 4px 4px 0';
+        addButton.style.cursor = 'pointer';
+
+        inputContainer.appendChild(input);
+        inputContainer.appendChild(addButton);
+        content.appendChild(inputContainer);
+
+        // 关键词列表
+        const listTitle = document.createElement('div');
+        listTitle.textContent = '当前屏蔽词:';
+        listTitle.style.marginBottom = '8px';
+        listTitle.style.fontSize = '14px';
+        content.appendChild(listTitle);
+
+        const keywordsList = document.createElement('div');
+        keywordsList.id = 'happy-zhihu-keywords-list';
+        keywordsList.style.maxHeight = '150px';
+        keywordsList.style.overflowY = 'auto';
+        keywordsList.style.fontSize = '13px';
+        content.appendChild(keywordsList);
+
+        // 统计信息
+        const stats = document.createElement('div');
+        stats.id = 'happy-zhihu-stats';
+        stats.style.marginTop = '10px';
+        stats.style.padding = '8px';
+        stats.style.background = '#f5f5f5';
+        stats.style.borderRadius = '4px';
+        stats.style.fontSize = '12px';
+        stats.style.color = '#666';
+        content.appendChild(stats);
+
+        // 按钮容器
+        const buttonContainer = document.createElement('div');
+        buttonContainer.style.display = 'flex';
+        buttonContainer.style.gap = '10px';
+        buttonContainer.style.marginTop = '10px';
+
+        // 复制按钮
+        const copyButton = document.createElement('button');
+        copyButton.textContent = '复制屏蔽词';
+        copyButton.style.background = '#00c4ff';
+        copyButton.style.color = 'white';
+        copyButton.style.border = 'none';
+        copyButton.style.padding = '8px 12px';
+        copyButton.style.borderRadius = '4px';
+        copyButton.style.cursor = 'pointer';
+        copyButton.style.flex = '1';
+
+        // 导入按钮
+        const importButton = document.createElement('button');
+        importButton.textContent = '导入屏蔽词';
+        importButton.style.background = '#ff9500';
+        importButton.style.color = 'white';
+        importButton.style.border = 'none';
+        importButton.style.padding = '8px 12px';
+        importButton.style.borderRadius = '4px';
+        importButton.style.cursor = 'pointer';
+        importButton.style.flex = '1';
+
+        buttonContainer.appendChild(copyButton);
+        buttonContainer.appendChild(importButton);
+        content.appendChild(buttonContainer);
+
+        panel.appendChild(content);
+        document.body.appendChild(panel);
+
+        // 添加事件监听
+        addButton.addEventListener('click', addKeyword);
+        input.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') addKeyword();
+        });
+        copyButton.addEventListener('click', copyKeywordsToClipboard);
+        importButton.addEventListener('click', importKeywords);
+
+        // 初始渲染关键词列表和统计信息
+        renderKeywordsList();
+        updateStatistics();
+
+        // 使面板可拖拽
+        makePanelDraggable(panel);
+
+        return panel;
+    }
+
+    // 添加关键词
+    function addKeyword() {
+        const input = document.getElementById('happy-zhihu-keyword-input');
+        const keyword = input.value.trim();
+
+        if (keyword && !blockKeywords.includes(keyword)) {
+            blockKeywords.push(keyword);
+            blockKeywordsLower = blockKeywords.map(kw => kw.toLowerCase());
+            GM_setValue('blockKeywords', JSON.stringify(blockKeywords));
+            renderKeywordsList();
+            input.value = '';
+
+            // 重新处理所有问题
+            processAllQuestions();
+            updateStatistics();
+        }
+    }
+
+    // 删除关键词
+    function deleteKeyword(index) {
+        blockKeywords.splice(index, 1);
+        blockKeywordsLower = blockKeywords.map(kw => kw.toLowerCase());
+        GM_setValue('blockKeywords', JSON.stringify(blockKeywords));
+        renderKeywordsList();
+
+        // 重新处理所有问题
+        processAllQuestions();
+        updateStatistics();
+    }
+
+    // 渲染关键词列表
+    function renderKeywordsList() {
+        const list = document.getElementById('happy-zhihu-keywords-list');
+        list.innerHTML = '';
+
+        if (blockKeywords.length === 0) {
+            list.innerHTML = '<div style="color:#999; padding:5px 0;">暂无屏蔽词</div>';
+            return;
+        }
+
+        blockKeywords.forEach((keyword, index) => {
+            const item = document.createElement('div');
+            item.style.display = 'flex';
+            item.style.justifyContent = 'space-between';
+            item.style.alignItems = 'center';
+            item.style.padding = '5px 0';
+            item.style.borderBottom = '1px solid #f0f0f0';
+
+            const text = document.createElement('span');
+            text.textContent = keyword;
+
+            const deleteBtn = document.createElement('button');
+            deleteBtn.textContent = '删除';
+            deleteBtn.style.background = 'none';
+            deleteBtn.style.color = '#f56c6c';
+            deleteBtn.style.border = 'none';
+            deleteBtn.style.cursor = 'pointer';
+            deleteBtn.style.fontSize = '12px';
+            deleteBtn.addEventListener('click', () => deleteKeyword(index));
+
+            item.appendChild(text);
+            item.appendChild(deleteBtn);
+            list.appendChild(item);
+        });
+    }
+
+    // 复制所有屏蔽词到剪贴板
+    function copyKeywordsToClipboard() {
+        const keywordsString = JSON.stringify(blockKeywords, null, 2);
+
+        // 创建临时文本区域进行复制
+        const textArea = document.createElement('textarea');
+        textArea.value = keywordsString;
+        document.body.appendChild(textArea);
+        textArea.select();
+
+        try {
+            const successful = document.execCommand('copy');
+            if (successful) {
+                showNotification('已复制所有屏蔽词到剪贴板！');
+            } else {
+                showNotification('复制失败，请手动复制');
+            }
+        } catch (err) {
+            console.error('无法复制文本: ', err);
+            showNotification('复制失败，请手动复制');
+        }
+
+        document.body.removeChild(textArea);
+    }
+
+    // 导入屏蔽词
+    function importKeywords() {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.json,.txt';
+        input.onchange = e => {
+            const file = e.target.files[0];
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const importedKeywords = JSON.parse(e.target.result);
+                    if (Array.isArray(importedKeywords)) {
+                        blockKeywords = [...new Set([...blockKeywords, ...importedKeywords])];
+                        blockKeywordsLower = blockKeywords.map(kw => kw.toLowerCase());
+                        GM_setValue('blockKeywords', JSON.stringify(blockKeywords));
+                        renderKeywordsList();
+                        processAllQuestions();
+                        updateStatistics();
+                        showNotification('成功导入屏蔽词！');
+                    } else {
+                        showNotification('导入失败，文件格式不正确');
+                    }
+                } catch (error) {
+                    showNotification('导入失败，请检查文件格式');
+                }
+            };
+            reader.readAsText(file);
+        };
+        input.click();
+    }
+
+    // 更新统计信息
+    function updateStatistics() {
+        const statsElement = document.getElementById('happy-zhihu-stats');
+        if (!statsElement) return;
+
+        const totalQuestions = document.querySelectorAll(QUESTION_CONTAINER_SELECTOR).length;
+        const hiddenQuestions = document.querySelectorAll(`${QUESTION_CONTAINER_SELECTOR}[style*="display: none"]`).length;
+        statsElement.textContent = `已屏蔽 ${hiddenQuestions} / ${totalQuestions} 个问题，共 ${blockKeywords.length} 个屏蔽词`;
+    }
+
+    // 显示通知
+    function showNotification(message) {
+        // 创建通知元素
+        const notification = document.createElement('div');
+        notification.textContent = message;
+        notification.style.position = 'fixed';
+        notification.style.bottom = '70px';
+        notification.style.right = '20px';
+        notification.style.background = '#4caf50';
+        notification.style.color = 'white';
+        notification.style.padding = '8px 16px';
+        notification.style.borderRadius = '4px';
+        notification.style.zIndex = '10001';
+        notification.style.boxShadow = '0 2px 5px rgba(0,0,0,0.2)';
+
+        document.body.appendChild(notification);
+
+        // 3秒后移除通知
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.parentNode.removeChild(notification);
+            }
+        }, 3000);
+    }
+
+    // 使面板可拖拽
+    function makePanelDraggable(panel) {
+        const header = panel.querySelector('div:first-child');
+        let isDragging = false;
+        let startX, startY, initialX, initialY;
+
+        header.style.cursor = 'move';
+
+        header.addEventListener('mousedown', startDrag);
+
+        function startDrag(e) {
+            isDragging = true;
+            startX = e.clientX;
+            startY = e.clientY;
+            initialX = panel.offsetLeft;
+            initialY = panel.offsetTop;
+
+            document.addEventListener('mousemove', drag);
+            document.addEventListener('mouseup', stopDrag);
+        }
+
+        function drag(e) {
+            if (!isDragging) return;
+            const dx = e.clientX - startX;
+            const dy = e.clientY - startY;
+            panel.style.left = `${initialX + dx}px`;
+            panel.style.top = `${initialY + dy}px`;
+            panel.style.right = 'auto';
+            panel.style.bottom = 'auto';
+        }
+
+        function stopDrag() {
+            isDragging = false;
+            document.removeEventListener('mousemove', drag);
+            document.removeEventListener('mouseup', stopDrag);
+        }
+    }
+
+    // 检查是否应该屏蔽
+    function shouldBlock(title) {
+        const titleLower = title.toLowerCase();
+        return blockKeywordsLower.some(keyword => titleLower.includes(keyword));
+    }
+
+    // 处理单个问题元素
+    function processQuestionElement(element) {
+        // 如果已经处理过，跳过
+        if (processedElements.has(element)) return;
+
+        const titleElement = element.querySelector(TITLE_SELECTOR);
+        if (titleElement) {
+            const title = titleElement.textContent.trim();
+            if (shouldBlock(title)) {
+                // 隐藏整个问题块
+                element.style.display = 'none';
+            }
+        }
+
+        // 标记为已处理
+        processedElements.add(element);
+    }
+
+    // 处理所有可见的问题元素
+    function processAllQuestions() {
+        const elements = document.querySelectorAll(QUESTION_CONTAINER_SELECTOR);
+        // 使用requestAnimationFrame分批处理，避免阻塞
+        const batchSize = 10;
+        let index = 0;
+
+        function processBatch() {
+            const batchEnd = Math.min(index + batchSize, elements.length);
+            for (; index < batchEnd; index++) {
+                processQuestionElement(elements[index]);
+            }
+
+            if (index < elements.length) {
+                requestAnimationFrame(processBatch);
+            } else {
+                updateStatistics();
+            }
+        }
+
+        processBatch();
+    }
+
+    // 初始化
+    function init() {
+        // 延迟创建控制面板，避免影响页面加载
+        setTimeout(() => {
+            createControlPanel();
+        }, 1000);
+
+        // 延迟处理内容，避免影响页面初始渲染
+        setTimeout(() => {
+            processAllQuestions();
+        }, 500);
+
+        // 使用防抖的处理函数
+        const debouncedProcess = debounce(processAllQuestions, 300);
+
+        // 优化MutationObserver配置
+        const observer = new MutationObserver(mutations => {
+            let foundNewElements = false;
+
+            for (const mutation of mutations) {
+                // 只处理添加的节点
+                if (mutation.addedNodes.length > 0) {
+                    for (const node of mutation.addedNodes) {
+                        if (node.nodeType === 1) { // Element node
+                            // 检查是否是问题容器
+                            if (node.matches && node.matches(QUESTION_CONTAINER_SELECTOR)) {
+                                processQuestionElement(node);
+                                foundNewElements = true;
+                            } else {
+                                // 检查子元素中是否有问题容器
+                                const questionElements = node.querySelectorAll ? node.querySelectorAll(QUESTION_CONTAINER_SELECTOR) : [];
+                                if (questionElements.length > 0) {
+                                    questionElements.forEach(processQuestionElement);
+                                    foundNewElements = true;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 如果有新元素，更新统计信息
+            if (foundNewElements) {
+                debouncedProcess();
+            }
+        });
+
+        // 更保守的观察配置
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true
+        });
+    }
+
+    // 注册菜单命令
+    GM_registerMenuCommand('打开屏蔽词管理', () => {
+        const panel = document.getElementById('happy-zhihu-panel');
+        if (panel) {
+            panel.style.display = panel.style.display === 'none' ? 'block' : 'block';
+        }
+    });
+
+    // 页面加载完成后初始化
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
+    }
+})();
+
+/*
+更新日志
+
+初始版本 (v1.0)
+
+基本功能：在知乎首页屏蔽包含特定关键词的问题
+
+关键词列表硬编码在脚本中
+
+使用MutationObserver监听动态加载的内容
+
+简单直接的内容过滤功能
+
+v1.1 版本更新
+
+功能优化
+
+-> 屏蔽词管理面板
+
+在页面左下角添加了可交互的控制面板
+
+支持实时添加和删除屏蔽词
+
+所有更改立即生效并保存
+
+->持久化存储
+
+使用Tampermonkey的GM_setValue/GM_getValue API
+
+用户自定义的屏蔽词在页面刷新后仍然保留
+
+默认关键词列表作为初始值
+
+->复制功能
+
+添加"复制所有屏蔽词"按钮
+
+一键将当前屏蔽词列表复制到剪贴板
+
+JSON格式输出，便于直接粘贴到脚本代码中
+
+->用户体验改进
+
+添加操作反馈通知
+
+更直观的界面设计
+
+支持Enter键快速添加关键词
+
+->代码结构优化
+
+模块化函数设计，提高可维护性
+
+更清晰的代码组织结构
+
+添加了菜单命令支持
+
+v1.2 版本更新
+
+界面优化
+
+-> 控制面板位置调整
+
+从页面左下角改为右下角，避免遮挡知乎原生UI
+
+通知消息也相应调整到右下角显示
+
+功能增强
+
+-> 防抖处理
+
+添加debounce函数，减少高频DOM操作带来的性能开销
+
+优化MutationObserver回调逻辑
+
+-> 导入功能
+
+添加屏蔽词导入功能，支持JSON文件导入
+
+方便用户批量添加屏蔽词或迁移设置
+
+-> 拖拽功能
+
+控制面板支持拖拽，用户可以自由调整位置
+
+提升使用便利性
+
+-> 统计信息
+
+实时显示屏蔽统计：已屏蔽问题数量/总问题数量
+
+显示当前屏蔽词总数
+
+v1.3 版本更新 - 性能优化
+
+性能优化
+
+-> 元素处理缓存
+
+使用WeakSet缓存已处理的DOM元素，避免重复处理
+
+减少不必要的DOM操作
+
+-> 改进的选择器
+
+使用更精确的选择器匹配知乎问题容器
+
+减少不必要的元素匹配
+
+-> 分批处理
+
+使用requestAnimationFrame分批处理DOM元素
+
+避免一次性处理大量元素导致的页面卡顿
+
+-> 优化的MutationObserver
+
+简化MutationObserver逻辑，减少回调复杂度
+
+只处理真正新增的节点
+
+-> 延迟初始化
+
+控制面板创建和内容处理延迟执行
+
+避免影响页面初始加载速度
+
+-> 改进的防抖函数
+
+修复防抖函数实现，避免潜在的性能问题
+
+调整防抖时间到更合理的300ms
+
+-> 减少DOM查询
+
+优化统计信息更新逻辑，减少DOM查询频率
+
+问题修复
+
+-> 修复可能导致页面加载缓慢的问题
+
+-> 修复可能的内存泄漏问题
+
+-> 提高脚本稳定性
+*/
